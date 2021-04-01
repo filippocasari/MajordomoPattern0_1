@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.7)
+project(MajordomoPattern0_1 C)
+
+set(CMAKE_C_STANDARD 99)
+link_libraries("-lmdp")
+link_libraries("-lczmq")
+add_library(include STATIC broker.c clientSynchronous.c workerCoffee.c)
+link_libraries("-lzmq")
+link_libraries("-ljson-c")
+
+add_executable(BROKER broker.c)
+add_executable(worker workerCoffee.c)
+add_executable(clientAsynchronous clientAsynchronous.c)
+add_executable(clientSynchronous clientSynchronous.c)
+add_executable(clientJSON clientJSON.c)
