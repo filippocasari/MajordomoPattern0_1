@@ -1,12 +1,12 @@
 
 #include <mdp.h>
-#include <uuid/uuid.h>
+
 
 // raspberry endpoint : "tcp://192.168.0.113:5000"
 //localhost : "tcp://127.0.0.1:5000"
 #define BROKER_ENDPOINT  "tcp://192.168.0.113:5000"
 #define NUM_CLIENTS 1
-
+#define TYPE_REQUEST 0
 static void
 client_task(zsock_t *pipe, void *args);
 
@@ -33,46 +33,59 @@ int main(int argc, char *argv[]) {
 
 static void
 client_task(zsock_t *pipe, void *args) {
-    //zsock_signal(pipe, 0);
-    int verbose = 1;
-    uuid_t uuid;
-    uuid_generate_random(uuid);
-    char uuid_str[37];
-    uuid_unparse_upper(uuid, uuid_str);
-    zclock_log("UUID CLIENT: %s", uuid_str);
-    mdp_client_t *session = mdp_client_new(BROKER_ENDPOINT, verbose);
+    mdp_client_t *session2 = mdp_client_new(BROKER_ENDPOINT, 0);
 
 
-    //mettere commenti
-    int count;
-    zmsg_t *reply = NULL;
-    zmsg_t *request = zmsg_new();
-    int64_t start;
-    int64_t end;
-    start = zclock_time();
-    char *command;
-    char *service;
-    for (count = 0; count < 200; count++) {
-        request = zmsg_new();
-        assert(request);
-        int succ = zmsg_pushstr(request, "I wanna a coffee"); // aggiungere JSON/CBOR
+
+    int count; // number of request
+    zmsg_t *reply = NULL; //reply client will receive
+    zmsg_t *request = zmsg_new(); // request initialization
+    int64_t start; //start time to see processing time
+    int64_t end; //end time
+
+    // setting client request string
+    int length = snprintf( NULL, 0, "%d", TYPE_REQUEST);
+    char* request_str = malloc( length + 1 );
+    snprintf( request_str, length + 1, "%d", TYPE_REQUEST );
+
+    //start the time
+
+    start= zclock_mono();
+    // send all request without wait the reply==> ZMQ doc calls this Asynchronous Client
+
+    for (count = 0; count < 50; count++) {
+
+        int succ = zmsg_pushstr(request, request_str); //push the string set before into the request message
+        // handle error
         if (succ == -1) {
-            zclock_log("ERROR ");
+            puts("ERROR ");
         }
-        mdp_client_send(session, "coffee", &request);
+        //send request to broker for service "coffee" in this case
+        mdp_client_send(session2, "coffee", &request);
+        char *command; //command received
+        char *service; // from which service
+        zmsg_t *reply2 = mdp_client_recv(session2,&command, &service); //reply if any
 
-        reply = mdp_client_recv(session, &command, &service);
-
-        if (reply == NULL || command!=) {
-            zsys_error("No reply...destroying the client...");
-            mdp_client_destroy(&session);
-
+        //if reply is null, just tell to stdout
+        if (reply2 == NULL) {
+            puts("NO REPLY...");
         }
+        zmsg_destroy(&reply2);
+
+        // reinitialize request
+        request = zmsg_new();
     }
-    end = zclock_time() - start;
 
-    zclock_log("%d requests/replies processed", count);
-    zclock_log("Time for Synchronous Client is : %ld ms\n", end);
-    mdp_client_destroy(&session);
+    //dealloc any msg or string
+    free(request_str);
+    zmsg_destroy(&request);
+    zmsg_destroy(&reply);
+    end = zclock_mono() - start;
+
+    //print how many requests client tried to send and how much time has just spent on it
+
+    printf("%d requests/replies processed\n", count);
+    printf("Time for synchronous Client is : %ld ms", end);
+    mdp_client_destroy(&session2); //destroy and free memory
 
 }
