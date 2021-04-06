@@ -8,7 +8,7 @@
 // raspberry endpoint : "tcp://192.168.0.113:5000"
 //localhost : "tcp://127.0.0.1:5000"
 #define BROKER_ENDPOINT  "tcp://127.0.0.1:5000"
-
+#define REQUEST "GET"
 
 #define TYPE_REQUEST 0 //kind of coffee you want to require
 
@@ -16,17 +16,20 @@
 int main(int argc, char *argv[]) {
 
 
-    json_object *REQ = json_object_new_object();
+    json_object *REQ=json_object_new_object();
+    json_object_object_add(REQ, "type", json_object_new_string("REQ"));
+    json_object_object_add(REQ, "REQ_TYPE", json_object_new_string(REQUEST));
+    json_object_object_add(REQ, "SENSOR", json_object_new_string("SPEED"));
+    puts("JSON REQUEST: ");
+    json_object_object_foreach(REQ, key, val)
+    {
+        printf("\t%s: %s\n", key, json_object_to_json_string(val));
+    }
+    const char *string_request=json_object_to_json_string(REQ);
+    printf("\nSTRING REQUEST: %s", string_request);
 
 
-
-
-    int verbose = (argc > 1 && streq (argv[1], "-v"));
-    verbose = 1; //verbose if you wanna get a logger
-
-    //create a new client and automatically connect with broker endpoint
-    mdp_client_t *session2 = mdp_client_new(BROKER_ENDPOINT, verbose);
-
+    mdp_client_t *session2 = mdp_client_new(BROKER_ENDPOINT, 1);
 
 
     int count; // number of request
@@ -35,62 +38,70 @@ int main(int argc, char *argv[]) {
     int64_t start; //start time to see processing time
     int64_t end; //end time
 
-    // setting client request string
-    int length = snprintf( NULL, 0, "%d", TYPE_REQUEST);
-    char* request_str = malloc( length + 1 );
-    snprintf( request_str, length + 1, "%d", TYPE_REQUEST );
-
-
-
-
-    REQ=json_object_new_string(request_str);
-    printf("my_string=%s\n", json_object_get_string(REQ));
-    printf("my_string.to_string()=%s\n", json_object_to_json_string(REQ));
-    json_object_put(REQ);
 
     //start the time
-    start = zclock_time();
+
+    start= zclock_mono();
     // send all request without wait the reply==> ZMQ doc calls this Asynchronous Client
 
     for (count = 0; count < 50; count++) {
 
-        int succ = zmsg_pushstr(request, request_str); //push the string set before into the request message
+        int succ = zmsg_pushstr(request, string_request); //push the string set before into the request message
         // handle error
         if (succ == -1) {
             puts("ERROR ");
         }
         //send request to broker for service "coffee" in this case
-        mdp_client_send(session2, "coffee", &request);
+        mdp_client_send(session2, "engine_1", &request);
         // reinitialize request
         request = zmsg_new();
     }
 
     //dealloc any msg or string
-    free(request_str);
+
     zmsg_destroy(&request);
     zmsg_destroy(&reply);
 
-    //for loop to receive reply messages
-    for (count = 0; count < 50; count++) {
 
+    int num_no_replies=0;
+    int count_rep=0;
+    //for loop to receive reply messages
+    for (; count_rep < 50; count_rep++) {
+        if (zctx_interrupted) {
+            zclock_log("error signal handled...");
+            break;
+        }
         char *command; //command received
         char *service; // from which service
         zmsg_t *reply2 = mdp_client_recv(session2,&command, &service); //reply if any
-
-        //if reply is null, just tell to stdout
-        if (reply2 == NULL) {
+        if(reply2==NULL){
             puts("NO REPLY...");
+            num_no_replies++;
+            continue;
         }
+        char *reply_string=zmsg_popstr(reply2);
+        json_object *REP;
+        REP=json_tokener_parse(reply_string);
+        puts("REPLY = ");
+        json_object_object_foreach(REP, key, val){
+            printf("\t%s: %s\n", key, json_object_to_json_string(val));
+
+        }
+        //if reply is null, just tell to stdout
+
         zmsg_destroy(&reply2);
     }
     // end time
-    end = zclock_time() - start;
+    end = zclock_mono() - start;
 
     //print how many requests client tried to send and how much time has just spent on it
 
-    printf("%d requests/replies processed\n", count);
+    printf("%d requests processed\n", count);
+    //printf("%d number of replies \n", count_rep);
+    printf("%d number of received replies \n", count_rep-num_no_replies);
     printf("Time for Asynchronous Client is : %ld ms", end);
-    mdp_client_destroy(&session2); //destroy and free memory
+    mdp_client_destroy(&session2); //destro
+
     return 0;
 }
 

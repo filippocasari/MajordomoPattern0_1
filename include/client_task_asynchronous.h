@@ -1,39 +1,19 @@
+//
+// Created by Filippo on 06/04/2021.
+//
 
-#include <mdp.h>
+#ifndef MAJORDOMOPATTERN0_1_CLIENT_TASK_ASYNCHRONOUS_H
+#define MAJORDOMOPATTERN0_1_CLIENT_TASK_ASYNCHRONOUS_H
 
-
-// raspberry endpoint : "tcp://192.168.0.113:5000"
-//localhost : "tcp://127.0.0.1:5000"
 #define BROKER_ENDPOINT  "tcp://127.0.0.1:5000"
-#define NUM_CLIENTS 1
-#define TYPE_REQUEST 0
-static void
-client_task(zsock_t *pipe, void *args);
-
-int main(int argc, char *argv[]) {
-    //int verbose = (argc > 1 && streq (argv[1], "-v"));
-    zactor_t *clients[NUM_CLIENTS];
-    int i = 0;
-    for (; i < NUM_CLIENTS; i++) {
-        clients[i] = zactor_new(client_task, NULL);
-        if (zctx_interrupted) {
-            zclock_log("error signal handled...");
-        }
-
-    }
-    for (i = 0; i < NUM_CLIENTS; i++) {
-        zactor_destroy(&clients[i]);
-    }
-    zactor_destroy(clients);
-
-
-    return 0;
-}
-
+#define VERBOSE 1
+#define TYPE_REQUEST 0 //kind of coffee you want to require
 
 static void
-client_task(zsock_t *pipe, void *args) {
-    mdp_client_t *session2 = mdp_client_new(BROKER_ENDPOINT, 0);
+client_asynchronous_task(zsock_t *pipe, void *args) {
+
+    //create a new client and automatically connect with broker endpoint
+    mdp_client_t *session2 = mdp_client_new(BROKER_ENDPOINT, VERBOSE);
 
 
 
@@ -62,6 +42,21 @@ client_task(zsock_t *pipe, void *args) {
         }
         //send request to broker for service "coffee" in this case
         mdp_client_send(session2, "coffee", &request);
+        // reinitialize request
+        request = zmsg_new();
+    }
+
+    //dealloc any msg or string
+    free(request_str);
+    zmsg_destroy(&request);
+    zmsg_destroy(&reply);
+
+    //for loop to receive reply messages
+    for (count = 0; count < 50; count++) {
+        if (zctx_interrupted) {
+            zclock_log("error signal handled...");
+            break;
+        }
         char *command; //command received
         char *service; // from which service
         zmsg_t *reply2 = mdp_client_recv(session2,&command, &service); //reply if any
@@ -71,21 +66,17 @@ client_task(zsock_t *pipe, void *args) {
             puts("NO REPLY...");
         }
         zmsg_destroy(&reply2);
-
-        // reinitialize request
-        request = zmsg_new();
     }
-
-    //dealloc any msg or string
-    free(request_str);
-    zmsg_destroy(&request);
-    zmsg_destroy(&reply);
+    // end time
     end = zclock_mono() - start;
 
     //print how many requests client tried to send and how much time has just spent on it
 
     printf("%d requests/replies processed\n", count);
-    printf("Time for synchronous Client is : %ld ms", end);
+    printf("Time for Asynchronous Client is : %ld ms", end);
     mdp_client_destroy(&session2); //destroy and free memory
-
 }
+
+
+
+#endif //MAJORDOMOPATTERN0_1_CLIENT_TASK_ASYNCHRONOUS_H

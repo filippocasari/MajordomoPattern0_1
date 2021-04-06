@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "include/broker_mdp_extended.h"
-#include <mdp_broker.h>
+#include <mdp.h>
 int main(int argc, char *argv[]) {
     int verbose = 0;
     int daemonize = 0;

@@ -2,7 +2,21 @@
 <project version="4">
   <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="WSL (f7b2f0ab-21ad-44f4-b17a-f38429cca689)">
+      <paths name="WSL (17e26ce8-20f1-4d57-ba99-467d91df8962)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="WSL (73508f1b-970d-4f2e-b858-d975f3ced1e8)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="WSL (e41feda7-bdb9-4bb0-b99b-bff3579d45ae)">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
