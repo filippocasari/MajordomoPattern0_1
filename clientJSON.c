@@ -16,17 +16,16 @@
 int main(int argc, char *argv[]) {
 
 
-    json_object *REQ=json_object_new_object();
-    json_object_object_add(REQ, "type", json_object_new_string("REQ"));
+    json_object *REQ = json_object_new_object();
+    json_object_object_add(REQ, "TYPE", json_object_new_string("REQ"));
     json_object_object_add(REQ, "REQ_TYPE", json_object_new_string(REQUEST));
     json_object_object_add(REQ, "SENSOR", json_object_new_string("SPEED"));
     puts("JSON REQUEST: ");
-    json_object_object_foreach(REQ, key, val)
-    {
+    json_object_object_foreach(REQ, key, val) {
         printf("\t%s: %s\n", key, json_object_to_json_string(val));
     }
-    const char *string_request=json_object_to_json_string(REQ);
-    printf("\nSTRING REQUEST: %s", string_request);
+    const char *string_request = json_object_to_json_string(REQ);
+    printf("\nSTRING REQUEST: %s\n", string_request);
 
 
     mdp_client_t *session2 = mdp_client_new(BROKER_ENDPOINT, 1);
@@ -41,13 +40,17 @@ int main(int argc, char *argv[]) {
 
     //start the time
 
-    start= zclock_mono();
+    start = zclock_mono();
     // send all request without wait the reply==> ZMQ doc calls this Asynchronous Client
 
     for (count = 0; count < 50; count++) {
 
         int succ = zmsg_pushstr(request, string_request); //push the string set before into the request message
         // handle error
+        if (zctx_interrupted) {
+            zclock_log("error signal handled...");
+            break;
+        }
         if (succ == -1) {
             puts("ERROR ");
         }
@@ -63,8 +66,8 @@ int main(int argc, char *argv[]) {
     zmsg_destroy(&reply);
 
 
-    int num_no_replies=0;
-    int count_rep=0;
+    int num_no_replies = 0;
+    int count_rep = 0;
     //for loop to receive reply messages
     for (; count_rep < 50; count_rep++) {
         if (zctx_interrupted) {
@@ -73,18 +76,18 @@ int main(int argc, char *argv[]) {
         }
         char *command; //command received
         char *service; // from which service
-        zmsg_t *reply2 = mdp_client_recv(session2,&command, &service); //reply if any
-        if(reply2==NULL){
+        zmsg_t *reply2 = mdp_client_recv(session2, &command, &service); //reply if any
+        if (reply2 == NULL) {
             puts("NO REPLY...");
             num_no_replies++;
             continue;
         }
-        char *reply_string=zmsg_popstr(reply2);
+        char *reply_string = zmsg_popstr(reply2);
         json_object *REP;
-        REP=json_tokener_parse(reply_string);
+        REP = json_tokener_parse(reply_string);
         puts("REPLY = ");
-        json_object_object_foreach(REP, key, val){
-            printf("\t%s: %s\n", key, json_object_to_json_string(val));
+        json_object_object_foreach(REP, key2, val2) {
+            printf("\t%s: %s\n", key2, json_object_to_json_string(val2));
 
         }
         //if reply is null, just tell to stdout
@@ -98,7 +101,7 @@ int main(int argc, char *argv[]) {
 
     printf("%d requests processed\n", count);
     //printf("%d number of replies \n", count_rep);
-    printf("%d number of received replies \n", count_rep-num_no_replies);
+    printf("%d number of received replies \n", count_rep - num_no_replies);
     printf("Time for Asynchronous Client is : %ld ms", end);
     mdp_client_destroy(&session2); //destro
 

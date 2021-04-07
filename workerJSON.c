@@ -57,7 +57,11 @@ workerTask(zsock_t *pipe, void *args) {
     srand(time(NULL));
     while (1) {
 
-        zsys_catch_interrupts(); // if any interrupt caught, show it
+        if (zctx_interrupted) {
+            zclock_log("error signal handled...");
+            mdp_worker_destroy(&session);
+            break;
+        }
 
         zmsg_t *request = mdp_worker_recv(session,
                                           &reply_to); // receive the request message body, it can be 1) Null if there isn't the body, one or more frames
