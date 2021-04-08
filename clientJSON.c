@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
         if (succ == -1) {
             puts("ERROR ");
         }
-        //send request to broker for service "coffee" in this case
+        //send request to broker for service "engine_1" in this case
         mdp_client_send(session2, "engine_1", &request);
         // reinitialize request
         request = zmsg_new();
