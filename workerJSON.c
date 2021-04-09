@@ -22,8 +22,11 @@ int main() {
     zactor_t *workers[NUM_WORKERS];
     for (int i = 0; i < NUM_WORKERS; i++) {
         workers[i] = zactor_new(workerTask, NULL);
+        if(zctx_interrupted){
+            break;
+        }
     }
-    zsys_catch_interrupts();
+
     for (int i = 0; i < NUM_WORKERS; i++) {
         zactor_destroy(&workers[i]);
     }
@@ -56,10 +59,11 @@ workerTask(zsock_t *pipe, void *args) {
     int count = 0;
     srand(time(NULL));
     while (1) {
-
+        zsys_catch_interrupts();
         if (zctx_interrupted) {
             zclock_log("error signal handled...");
             mdp_worker_destroy(&session);
+            zclock_sleep(500);
             break;
         }
 
@@ -152,7 +156,7 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
 
             speed += (double) rand() / RAND_MAX * 2.0 - 1.0;
             json_object_object_add(REP[i], "VALUE", json_object_new_double(speed));
-            int64_t timestamp = zclock_mono();
+            int64_t timestamp = zclock_time();
             json_object_object_add(REP[i], "timestamp", json_object_new_int64(timestamp));
 
 
@@ -168,7 +172,6 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
 
 
     }
-
 
     return reply;
 }

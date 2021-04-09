@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include "include/broker_mdp_extended.h"
 #include <mdp.h>
+#define BROKER_ENDPOINT "tcp://127.0.0.1:5000"
+
+
 int main(int argc, char *argv[]) {
     int verbose = 0;
     int daemonize = 0;
@@ -34,8 +37,8 @@ int main(int argc, char *argv[]) {
     else
     {
         /* default */
-        s_broker_bind (self, "tcp://127.0.0.1:5000");
-        printf("Bound to tcp://127.0.0.1:5000\n");
+        s_broker_bind (self, BROKER_ENDPOINT);
+        printf("Bound to %s\n", BROKER_ENDPOINT);
     }
 
     int rc=s_broker_loop(self);

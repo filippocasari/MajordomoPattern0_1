@@ -16,16 +16,20 @@
 int main(int argc, char *argv[]) {
 
 
-    json_object *REQ = json_object_new_object();
+    json_object *REQ = json_object_new_object(); //create a new object JSON
+    //following lines are about adding new string to json obj
     json_object_object_add(REQ, "TYPE", json_object_new_string("REQ"));
     json_object_object_add(REQ, "REQ_TYPE", json_object_new_string(REQUEST));
     json_object_object_add(REQ, "SENSOR", json_object_new_string("SPEED"));
     puts("JSON REQUEST: ");
+    //to print what is inside the obj
     json_object_object_foreach(REQ, key, val) {
         printf("\t%s: %s\n", key, json_object_to_json_string(val));
     }
-    const char *string_request = json_object_to_json_string(REQ);
+    const char *string_request = json_object_to_json_string(REQ); //converting to a string
     printf("\nSTRING REQUEST: %s\n", string_request);
+
+    //SAME CODE OF CLIENT ASYNCHRONOUS
 
 
     mdp_client_t *session2 = mdp_client_new(BROKER_ENDPOINT, 1);
@@ -42,7 +46,7 @@ int main(int argc, char *argv[]) {
 
     start = zclock_mono();
     // send all request without wait the reply==> ZMQ doc calls this Asynchronous Client
-
+    long timestamps_receiving[50];
     for (count = 0; count < 50; count++) {
 
         int succ = zmsg_pushstr(request, string_request); //push the string set before into the request message
@@ -56,6 +60,8 @@ int main(int argc, char *argv[]) {
         }
         //send request to broker for service "engine_1" in this case
         mdp_client_send(session2, "engine_1", &request);
+
+
         // reinitialize request
         request = zmsg_new();
     }
@@ -77,6 +83,9 @@ int main(int argc, char *argv[]) {
         char *command; //command received
         char *service; // from which service
         zmsg_t *reply2 = mdp_client_recv(session2, &command, &service); //reply if any
+        timestamps_receiving[count_rep] = zclock_time();
+
+
         if (reply2 == NULL) {
             puts("NO REPLY...");
             num_no_replies++;
@@ -86,8 +95,19 @@ int main(int argc, char *argv[]) {
         json_object *REP;
         REP = json_tokener_parse(reply_string);
         puts("REPLY = ");
+        long time_of_sending;
         json_object_object_foreach(REP, key2, val2) {
             printf("\t%s: %s\n", key2, json_object_to_json_string(val2));
+            char *string_value=strdup(json_object_to_json_string(val2));
+            char *key_str= strdup(key2);
+            char *ptr;
+            if (strcmp(key_str, "timestamp") == 0) {
+                time_of_sending = strtol(string_value, &ptr, 10);
+                long time_end_to_end= timestamps_receiving[count_rep]-time_of_sending;
+
+                printf("Time of delay end to end : \t%ld\n", time_end_to_end);
+
+            }
 
         }
         //if reply is null, just tell to stdout

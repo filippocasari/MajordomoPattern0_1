@@ -1,7 +1,7 @@
 #include <msgpack.h>
 #include <stdio.h>
 #include <mdp.h>
-#include "include/client_task_asynchronous.h"
+#define BROKER_ENDPOINT "tcp://192.168.0.113:5000"
 
 #define REQUEST "GET"
 
@@ -52,17 +52,19 @@ int main(void) {
 
 
     /* deserializes it. */
+    puts("-----------------------------------------------------------------------");
     msgpack_unpacked msg;
     msgpack_unpacked_init(&msg);
     msgpack_unpack_return ret = msgpack_unpack_next(&msg, buffer->data, buffer->size, NULL);
 
     /* prints the deserialized object. */
     msgpack_object obj = msg.data;
-    msgpack_object_print(stdout, obj);  /*=> ["Hello", "MessagePack"] */
+    msgpack_object_print(stdout, obj);/*=> ["Hello", "MessagePack"] */
 
     /* cleaning */
     msgpack_sbuffer_free(buffer);
     msgpack_packer_free(pk);
+    mdp_client_destroy(&session2);
 
 
 
