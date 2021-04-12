@@ -5,7 +5,9 @@
 #include <json-c/json.h>
 
 #define NUM_WORKERS 1
-#define BROKER_ENDPOINT  "tcp://127.0.0.1:5000"
+// "tcp://192.168.0.113:5000"
+// "tcp://127.0.0.1:5000"
+#define BROKER_ENDPOINT  "tcp://192.168.0.113:5000"
 
 #define VENDOR "Renault"
 #define POWER "90cv"
@@ -137,10 +139,7 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
         frame_n = request[i];
         char *request_string_json = zframe_strdup(frame_n);
         zframe_destroy(&frame_n);
-
         REQ[i] = json_tokener_parse(request_string_json);
-
-
     }
 
     for (int i = 0; i < n; i++) {
@@ -148,7 +147,6 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
         json_object_object_foreach(REQ[i], key, val) {
             printf("\t%s: %s\n", key, json_object_to_json_string(val));
             REP[i] = json_object_new_object();
-
 
             puts("client wants the speed!");
             json_object_object_add(REP[i], "VENDOR", json_object_new_string(VENDOR));
