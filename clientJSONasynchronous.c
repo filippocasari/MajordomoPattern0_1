@@ -11,7 +11,7 @@
 #define BROKER_ENDPOINT  "tcp://192.168.0.113:5000"
 #define REQUEST "GET"
 
-#define NUM_OF_REQUEST 10000
+#define NUM_OF_REQUEST 5
 
 #define TYPE_REQUEST 0 //kind of coffee you want to require
 
@@ -215,7 +215,7 @@ long calculating_time_serialization(struct json_object *REQ) {
     if (time < 0) {
         return -1;
     }
-    printf("Time for serialization %ld [micro sec]", time);
+    puts("--------------------------------------------");
+    printf("Time for serialization %ld [micro sec]\n", time);
     return time;
 }
-
