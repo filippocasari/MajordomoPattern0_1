@@ -5,10 +5,10 @@
 #include <json-c/json.h>
 #include <mdp.h>
 
-#include "include/coffeeType.h"
-// raspberry endpoint : "tcp://192.168.0.113:5000"
+
+// raspberry endpoint : "tcp://192.168.0.113:5000" "tcp://192.168.1.7:5000"
 //localhost : "tcp://127.0.0.1:5000"
-#define BROKER_ENDPOINT  "tcp://192.168.0.113:5000"
+#define BROKER_ENDPOINT  "tcp://192.168.1.7:5000"
 #define REQUEST "GET"
 
 #define NUM_OF_REQUEST 5
@@ -24,12 +24,19 @@ void print_serialized_object(struct json_object *REQ);
 
 long create_JSON_object(struct json_object *REQ);
 
+void calculating_time_of_sending(const long *start, const long *end, long *array_of_sending_times, const int *index);
+
+void print_average_time_of_sending(const long *array_of_sending_times);
+
 
 void calculating_average_time_serialization(const long *time_serialization_array);
 
 int main(int argc, char *argv[]) {
 
     long time_serialization_array[NUM_OF_REQUEST];
+    long time_sending_request[NUM_OF_REQUEST];
+
+
     json_object *REQ = json_object_new_object(); //create a new object JSON
 
 
@@ -70,7 +77,10 @@ int main(int argc, char *argv[]) {
             puts("ERROR ");
         }
         //send request to broker for service "engine_1" in this case
+        start = zclock_usecs();
         mdp_client_send(session2, "engine_1", &request);
+        end = zclock_usecs();
+        calculating_time_of_sending(&start, &end, time_sending_request, &count);
 
 
         // reinitialize request
@@ -146,6 +156,7 @@ int main(int argc, char *argv[]) {
 
     calculating_delay(timestamps_receiving, timestamps_sent, &count);
     calculating_average_time_serialization(time_serialization_array);
+    print_average_time_of_sending(time_sending_request);
     mdp_client_destroy(&session2); //destroy
 
     return 0;
@@ -156,8 +167,8 @@ void calculating_average_time_serialization(const long *time_serialization_array
     for (int i = 0; i < NUM_OF_REQUEST; i++) {
         sum += time_serialization_array[i];
     }
-    long double serialization_average_time =(long double) sum / NUM_OF_REQUEST;
-    printf("AVERAGE TIME OF SERIALIZATION: %Lf [micro seconds]", serialization_average_time);
+    long double serialization_average_time = (long double) sum / NUM_OF_REQUEST;
+    printf("AVERAGE TIME OF SERIALIZATION: %Lf [micro seconds]\n", serialization_average_time);
 }
 
 long create_JSON_object(struct json_object *REQ) {
@@ -211,11 +222,28 @@ long calculating_time_serialization(struct json_object *REQ) {
     json_object_object_add(REQ, "REQ_TYPE", json_object_new_string(REQUEST));
     json_object_object_add(REQ, "SENSOR", json_object_new_string("SPEED"));
     end = zclock_usecs();
-    time =(end - start);
+    time = (end - start);
     if (time < 0) {
         return -1;
     }
     puts("--------------------------------------------");
     printf("Time for serialization %ld [micro sec]\n", time);
     return time;
+}
+
+void calculating_time_of_sending(const long *start, const long *end, long *array_of_sending_times, const int *index) {
+
+    array_of_sending_times[*index] = end - start;
+    printf("TIME OF SENDING REQUEST: %ld [micro secs]\n", array_of_sending_times[*index]);
+
+}
+
+void print_average_time_of_sending(const long *array_of_sending_times){
+    long sum=0;
+    for(int i=0; i<NUM_OF_REQUEST; i++){
+        sum+=array_of_sending_times[i];
+    }
+    long double average= (long double) sum/NUM_OF_REQUEST;
+
+    printf("AVERAGE TIME TO SEND A REQUEST: %Lf [micro secs]\n", average);
 }
