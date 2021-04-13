@@ -11,7 +11,7 @@
 #define BROKER_ENDPOINT  "tcp://192.168.1.7:5000"
 #define REQUEST "GET"
 
-#define NUM_OF_REQUEST 5
+#define NUM_OF_REQUEST 10000
 
 #define TYPE_REQUEST 0 //kind of coffee you want to require
 
@@ -49,13 +49,14 @@ int main(int argc, char *argv[]) {
     int count; // number of request
     zmsg_t *reply = NULL; //reply client will receive
     zmsg_t *request = zmsg_new(); // request initialization
-    int64_t start; //start time to see processing time
+    int64_t start_execution_time; //start time to see processing time
     int64_t end; //end time
 
 
     //start the time
 
-    start = zclock_mono();
+
+    start_execution_time=zclock_mono();
     // send all request without wait the reply==> ZMQ doc calls this Asynchronous Client
     long timestamps_receiving[NUM_OF_REQUEST];
     long timestamps_sent[NUM_OF_REQUEST];
@@ -77,10 +78,10 @@ int main(int argc, char *argv[]) {
             puts("ERROR ");
         }
         //send request to broker for service "engine_1" in this case
-        start = zclock_usecs();
+        long start_time_sending = zclock_usecs();
         mdp_client_send(session2, "engine_1", &request);
-        end = zclock_usecs();
-        calculating_time_of_sending(&start, &end, time_sending_request, &count);
+        long end_time_sending = zclock_usecs();
+        calculating_time_of_sending(&start_time_sending, &end_time_sending, time_sending_request, &count);
 
 
         // reinitialize request
@@ -141,7 +142,7 @@ int main(int argc, char *argv[]) {
         zmsg_destroy(&reply2);
     }
     // end time
-    end = zclock_mono() - start;
+    end = zclock_mono() - start_execution_time;
 
     //print how many requests client tried to send and how much time has just spent on it
 
@@ -245,5 +246,5 @@ void print_average_time_of_sending(const long *array_of_sending_times){
     }
     long double average= (long double) sum/NUM_OF_REQUEST;
 
-    printf("AVERAGE TIME TO SEND A REQUEST: %Lf [micro secs]\n", average);
+    printf("AVERAGE TIME TO SEND A REQUEST: %Lf [micro seconds]\n", average);
 }
