@@ -18,6 +18,10 @@ static void workerTask(zsock_t *pipe, void *args);
 
 zmsg_t *handle_type_request(zframe_t *request[]);
 
+void print_parsing_time(const long *start, const long *end);
+
+void print_average_parsing_time(long *parsing_array, size_t *num_samples);
+
 double speed = 130.0;
 
 int main() {
@@ -28,7 +32,7 @@ int main() {
 
     }
     zsys_catch_interrupts();
-    if(zsys_interrupted){
+    if (zsys_interrupted) {
         for (int i = 0; i < NUM_WORKERS; i++) {
             zactor_destroy(&workers[i]);
         }
@@ -50,14 +54,14 @@ workerTask(zsock_t *pipe, void *args) {
 
     //create a new worker, you have to pass "endpoint of the broker", "service required" and the verbose
     long end;
-    long start=zclock_usecs();
+    long start = zclock_usecs();
     long time_to_signup;
     long time_to_close_connection;
     long *times_of_pop_request;
     mdp_worker_t *session = mdp_worker_new(
             BROKER_ENDPOINT, "engine_1", verbose);
-    end=zclock_usecs();
-    time_to_signup=end-start;
+    end = zclock_usecs();
+    time_to_signup = end - start;
     printf("TIME TO SIGN UP: %ld [micro secs]\n", time_to_signup);
     mdp_worker_set_heartbeat(session,
                              7500); //set the heartbeat time. After this time in seconds, worker will send to worker an heartbeat message
@@ -75,10 +79,10 @@ workerTask(zsock_t *pipe, void *args) {
 
         if (zctx_interrupted || zsys_interrupted) {
             zclock_log("error signal handled...");
-            start=zclock_usecs();
+            start = zclock_usecs();
             mdp_worker_destroy(&session);
-            end=zclock_usecs();
-            time_to_close_connection= end-start;
+            end = zclock_usecs();
+            time_to_close_connection = end - start;
             printf("TIME TO CLOSE CONNECTION: %ld [micro secs]\n", time_to_close_connection);
             zclock_sleep(500);
             break;
@@ -101,7 +105,7 @@ workerTask(zsock_t *pipe, void *args) {
 
 
         int size_request = (int) zmsg_size(request); //SIZE of the request
-        times_of_pop_request=(long*) malloc(size_request*sizeof(long));
+        times_of_pop_request = (long *) malloc(size_request * sizeof(long));
         //frames of body request
         zframe_t *request_stream[size_request];
 
@@ -119,15 +123,15 @@ workerTask(zsock_t *pipe, void *args) {
         char *s = NULL; //string extracted from each frame
 
 
-        start=zclock_usecs(); // time to start popping requests
+        start = zclock_usecs(); // time to start popping requests
         // extract frames "for loop"
 
         for (int i = 0; i < size_request; i++) {
             //create a list of frames and for each one extracts the string
             request_stream[i] = zmsg_pop(request);
-            end=zclock_usecs();
-            printf("TIME TO POP ONE SINGLE REQUEST: %ld [micro secs] \n", end-start);
-            times_of_pop_request[i]=end-start;
+            end = zclock_usecs();
+            printf("TIME TO POP ONE SINGLE REQUEST: %ld [micro secs] \n", end - start);
+            times_of_pop_request[i] = end - start;
             //duplicating string of the frame into the printable string
             s = zframe_strdup(request_stream[i]);
             printf("BODY FRAME[%d]: %s\n", i, s);
@@ -135,12 +139,12 @@ workerTask(zsock_t *pipe, void *args) {
             printf("FRAME TYPE-CONTENT: %s\n", "PLAIN STRING");
             printf("(BYTE) SIZE FRAME: %lu\n", zframe_size(request_stream[i]));
         }
-        long sum=0;
+        long sum = 0;
         long double average_time_pop_request;
-        for(int i=0; i<size_request; i++){
-            sum+=times_of_pop_request[i];
+        for (int i = 0; i < size_request; i++) {
+            sum += times_of_pop_request[i];
         }
-        average_time_pop_request= (long double) sum / size_request;
+        average_time_pop_request = (long double) sum / size_request;
         puts("---------------------------------------------------");
         printf("AVERAGE TIME TO POP REQUEST: %Lf [micro secs]\n", average_time_pop_request);
         free(times_of_pop_request);
@@ -160,16 +164,33 @@ workerTask(zsock_t *pipe, void *args) {
 
 zmsg_t *handle_type_request(zframe_t *request[]) {
 
+
+    long start_time_creating_reply;
+    long start_time_parsing;
+    long end_time_parsing;
     size_t n = (int) (sizeof(request) / sizeof(request[0]));
     zframe_t *frame_n;
+
     zmsg_t *reply = zmsg_new();
+
     json_object *REQ[n];
     json_object *REP[n];
+    long parsing_array[n];
+
     for (int i = 0; i < n; i++) {
         frame_n = request[i];
-        char *request_string_json = zframe_strdup(frame_n);
+        start_time_parsing = zclock_usecs(); // start time of the parsing
+
+        char *request_string_json = zframe_strdup(frame_n); //copy frame as a string
+        REQ[i] = json_tokener_parse(request_string_json); //adding new request to array REQ
+        end_time_parsing = zclock_usecs();
+
+        parsing_array[i]=end_time_parsing-start_time_parsing;
+
+        print_parsing_time(&start_time_parsing, &end_time_parsing);
+
         zframe_destroy(&frame_n);
-        REQ[i] = json_tokener_parse(request_string_json);
+
     }
 
     for (int i = 0; i < n; i++) {
@@ -197,9 +218,27 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
 
         const char *reply_string = json_object_to_json_string(REP[i]);
         zmsg_pushstr(reply, reply_string);
-
+        print_average_parsing_time(parsing_array, &n);
 
     }
 
     return reply;
+}
+
+void print_average_parsing_time(long *parsing_array, size_t *num_samples) {
+    long sum=0;
+    for (int i=0;  i < *num_samples; i++){
+        sum+=parsing_array[i];
+    }
+    long double average= (long double) sum/ *num_samples;
+    printf("AVERAGE TIME OF PARSING FOR WORKER: %Lf [micro secs]\n",average);
+}
+
+void print_parsing_time(const long *start, const long *end) {
+    if((end-start)>0){
+        printf("PARSING TIME: %ld [micro secs]\n", end-start);
+     }else{
+        puts("CANNOT PARSING, TIME IS NEGATIVE...\n");
+    }
+
 }

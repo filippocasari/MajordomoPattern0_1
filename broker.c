@@ -8,6 +8,11 @@ int main(int argc, char *argv[]) {
     int verbose = 0;
     int daemonize = 0;
     int user_endpoint = 0;
+
+    long start_time_creation;
+    long end_time_creation;
+
+
     for (int i = 1; i < argc; i++)
     {
         if (streq(argv[i], "-v")) verbose = 1;
@@ -25,7 +30,7 @@ int main(int argc, char *argv[]) {
         int rc = daemon(0, 0);
         assert (rc == 0);
     }
-
+    start_time_creation=zclock_usecs();
     broker_t *self = s_broker_new (verbose);
 
     /* did the user specify a bind address? */
@@ -40,7 +45,14 @@ int main(int argc, char *argv[]) {
         s_broker_bind (self, BROKER_ENDPOINT);
         printf("Bound to %s\n", BROKER_ENDPOINT);
     }
-
+    end_time_creation=zclock_usecs();
+    long time_of_creation_broker= end_time_creation-start_time_creation;
+    if(time_of_creation_broker>0){
+        printf("TIME FOR CREATION AND BINDING OF BROKER : %ld [micro secs]\n", time_of_creation_broker);
+    }
+    else{
+        puts("NO TIME OF CREATION BECAUSE TIME IS NEGATIVE\n");
+    }
     int rc=s_broker_loop(self);
 
 

@@ -14,6 +14,6 @@ add_executable(clientAsynchronous clientAsynchronous.c)
 add_executable(clientSynchronous clientSynchronous.c)
 add_executable(clientJSON clientJSONasynchronous.c)
 add_executable(workerJSON workerJSON.c)
-add_executable(clientJSONnoString clientJSONnoString.c)
-add_executable(workerJSONnoString workerJSONnoString.c)
+
+
 add_executable(clientMSGPACK clientMSGPACK.c)

@@ -23,6 +23,13 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="WSL (ef30f6e6-df29-4e71-b7ae-124f4ac778d0)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
     </serverData>
   </component>
 </project>
