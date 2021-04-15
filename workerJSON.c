@@ -20,7 +20,7 @@ zmsg_t *handle_type_request(zframe_t *request[]);
 
 void print_parsing_time(const long *start, const long *end);
 
-void print_average_parsing_time(long *parsing_array, size_t *num_samples);
+void print_average_parsing_time(const long *parsing_array, const size_t *num_samples);
 
 double speed = 130.0;
 
@@ -162,7 +162,7 @@ workerTask(zsock_t *pipe, void *args) {
 
 }
 
-zmsg_t *handle_type_request(zframe_t *request[]) {
+zmsg_t* handle_type_request(zframe_t *request[]) {
 
 
     long start_time_creating_reply;
@@ -205,7 +205,9 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
 
             speed += (double) rand() / RAND_MAX * 2.0 - 1.0;
             json_object_object_add(REP[i], "VALUE", json_object_new_double(speed));
+
             int64_t timestamp = zclock_time();
+
             json_object_object_add(REP[i], "timestamp", json_object_new_int64(timestamp));
 
 
@@ -225,7 +227,7 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
     return reply;
 }
 
-void print_average_parsing_time(long *parsing_array, size_t *num_samples) {
+void print_average_parsing_time(const long *parsing_array, const size_t *num_samples) {
     long sum=0;
     for (int i=0;  i < *num_samples; i++){
         sum+=parsing_array[i];

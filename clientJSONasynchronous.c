@@ -11,11 +11,12 @@
 #define BROKER_ENDPOINT  "tcp://192.168.1.7:5000"
 #define REQUEST "GET"
 
-#define NUM_OF_REQUEST 100
+#define NUM_OF_REQUEST 50
+#define TIME_TO_WAIT 500
 
 #define TYPE_REQUEST 0 //kind of coffee you want to require
 
-int calculating_delay(const long *timestamps_receiving, const long *timestamps_sent, int const *count);
+int calculating_delay(const long *time_end_to_end_array, int const *count);
 
 long calculating_time_serialization(json_object *REQ);
 
@@ -24,7 +25,8 @@ void print_serialized_object(struct json_object *REQ);
 
 long create_JSON_object(struct json_object *REQ);
 
-void calculating_time_of_sending(const int64_t *start, const int64_t *end, long *array_of_sending_times, const int *index);
+void
+calculating_time_of_sending(const int64_t *start, const int64_t *end, long *array_of_sending_times, const int *index);
 
 void print_average_time_of_sending(const long *array_of_sending_times);
 
@@ -56,12 +58,14 @@ int main(int argc, char *argv[]) {
     //start the time
 
 
-    start_execution_time=zclock_mono();
+    start_execution_time = zclock_mono();
     // send all request without wait the reply==> ZMQ doc calls this Asynchronous Client
     long timestamps_receiving[NUM_OF_REQUEST];
     long timestamps_sent[NUM_OF_REQUEST];
+    long *time_end_to_end_array = malloc(NUM_OF_REQUEST * sizeof(long));
 
-
+    long int wait_at;
+    long int time_at;
     for (count = 0; count < NUM_OF_REQUEST; count++) {
 
         time_serialization_array[count] = create_JSON_object(REQ); //returns a time and create and serializes
@@ -78,15 +82,26 @@ int main(int argc, char *argv[]) {
             puts("ERROR ");
         }
         //send request to broker for service "engine_1" in this case
-        int64_t start_time_sending =  zclock_usecs();
+        /*
+        if (((long int) zclock_mono() < wait_at) && count>0){
+
+            int time_difference= (int) ( wait_at - (long int) zclock_mono());
+            printf("WAITING TIME TO SEND AN OTHER REQ: %d\n", time_difference);
+            zclock_sleep(time_difference);
+        }*/
+        int64_t start_time_sending = zclock_usecs();
         mdp_client_send(session2, "engine_1", &request);
         int64_t end_time_sending = zclock_usecs();
+        /*time_at = zclock_mono();
+        wait_at = time_at + TIME_TO_WAIT;*/
         calculating_time_of_sending(&start_time_sending, &end_time_sending, time_sending_request, &count);
 
 
         // reinitialize request
         request = zmsg_new();
         REQ = json_object_new_object();
+
+
     }
 
     //dealloc any msg or string
@@ -108,7 +123,6 @@ int main(int argc, char *argv[]) {
         zmsg_t *reply2 = mdp_client_recv(session2, &command, &service); //reply if any
         timestamps_receiving[count_rep] = zclock_time();
 
-
         if (reply2 == NULL) {
             puts("NO REPLY...");
             num_no_replies++;
@@ -125,12 +139,14 @@ int main(int argc, char *argv[]) {
             char *key_str = strdup(key2);
             char *ptr;
             puts("");
+            time_end_to_end_array[count_rep] = 0;
             if (strcmp(key_str, "timestamp") == 0) {
                 time_of_sending = strtol(string_value, &ptr, 10);
                 timestamps_sent[count_rep] = time_of_sending;
                 printf("Timestamp of captured receiving pack: %ld\n", timestamps_receiving[count_rep]);
 
                 long time_end_to_end = timestamps_receiving[count_rep] - time_of_sending;
+                time_end_to_end_array[count_rep] = time_end_to_end;
 
                 printf("Time of delay end to end : \t%ld\n", time_end_to_end);
 
@@ -155,7 +171,7 @@ int main(int argc, char *argv[]) {
 
     //calculating average time of end to end delay
 
-    calculating_delay(timestamps_receiving, timestamps_sent, &count);
+    calculating_delay(time_end_to_end_array, &count);
     calculating_average_time_serialization(time_serialization_array);
     print_average_time_of_sending(time_sending_request);
     mdp_client_destroy(&session2); //destroy
@@ -195,19 +211,19 @@ void print_serialized_object(json_object *REQ) {
     }
 }
 
-int calculating_delay(const long *timestamps_receiving, const long *timestamps_sent, const int *count) {
-    int sum = 0;
+int calculating_delay(const long *time_end_to_end_array, const int *count) {
+    long int sum = 0;
     for (int i = 0; i < *count; i++) {
-        sum += (int) (timestamps_receiving[i] - timestamps_sent[i]);
+        sum += (long int) (time_end_to_end_array[i]);
     }
-    double average = (double) sum / *count;
+    long double average = (long double) sum / *count;
 
 
     if (average < 0) {
         puts("average negative...impossible, exit");
         return 1;
     }
-    printf("AVERAGE TIME END TO END: %f [ms]\n", average);
+    printf("AVERAGE TIME END TO END: %Lf [ms]\n", average);
 
     return 0;
 }
@@ -232,19 +248,20 @@ long calculating_time_serialization(struct json_object *REQ) {
     return time;
 }
 
-void calculating_time_of_sending(const int64_t *start, const int64_t *end, long *array_of_sending_times, const int *index) {
+void
+calculating_time_of_sending(const int64_t *start, const int64_t *end, long *array_of_sending_times, const int *index) {
 
-    array_of_sending_times[*index] =(long) (*end - *start);
+    array_of_sending_times[*index] = (long) (*end - *start);
     printf("TIME OF SENDING REQUEST: %ld [micro secs]\n", array_of_sending_times[*index]);
 
 }
 
-void print_average_time_of_sending(const long *array_of_sending_times){
-    long sum=0;
-    for(int i=0; i<NUM_OF_REQUEST; i++){
-        sum+=array_of_sending_times[i];
+void print_average_time_of_sending(const long *array_of_sending_times) {
+    long sum = 0;
+    for (int i = 0; i < NUM_OF_REQUEST; i++) {
+        sum += array_of_sending_times[i];
     }
-    long double average= (long double) sum/NUM_OF_REQUEST;
+    long double average = (long double) sum / NUM_OF_REQUEST;
 
     printf("AVERAGE TIME TO SEND A REQUEST: %Lf [micro seconds]\n", average);
 }
