@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
         else if (streq(argv[i], "-d")) daemonize = 1;
         else if (streq(argv[i], "-h"))
         {
-            printf("%s [-h] | [-d] [-v] [broker url]\n\t-h This help message\n\t-d Daemon mode.\n\t-v Verbose output\n\tbroker url defaults to tcp://*:5555\n", argv[0]);
+            printf("%s [-h] | [-d] [-v] [broker url]\n\t-h This help message\n\t-d Daemon mode.\n\t-v Verbose output\n\tbroker url defaults to tcp://*:5000\n", argv[0]);
             return -1;
         }
         else user_endpoint = 1;
@@ -58,7 +58,12 @@ int main(int argc, char *argv[]) {
 
 
     if(rc>0){
+
         zsys_error("\nerror in the broker or interrupt command...\nRETURN CODE:%d ", rc);
+        long start_time_to_close_broker=zclock_usecs();
+        s_broker_destroy(&self);
+        long end_time_to_close_broker=zclock_usecs();
+        printf("END TIME TO CLOSE BROKER: %ld [micro secs]\n", end_time_to_close_broker-start_time_to_close_broker);
     }
     return 0;
 }
