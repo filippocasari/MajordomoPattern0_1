@@ -11,10 +11,11 @@
 
 // raspberry endpoint : "tcp://192.168.0.113:5000" "tcp://192.168.1.7:5000"
 //localhost : "tcp://127.0.0.1:5000"
-#define BROKER_ENDPOINT  "tcp://192.168.1.7:5000"
+#define BROKER_ENDPOINT  "tcp://192.168.0.113:5000"
 #define REQUEST "GET"
-#define TIME_TO_WAIT 1000
-#define NUM_OF_REQUEST 50
+#define TIME_TO_WAIT 1
+#define NUM_OF_REQUEST 100
+#define REQUEST_FOR_SECOND 10
 
 #define TYPE_REQUEST 0 //kind of coffee you want to require
 
@@ -90,7 +91,7 @@ int main(int argc, char *argv[]) {
 
 
 
-        if (((long int) zclock_mono() < wait_at) && count>0){
+        if (((long int) zclock_mono() < wait_at) && count>0 && count%REQUEST_FOR_SECOND==0){
 
             int time_difference= (int) ( wait_at - (long int) zclock_mono());
             printf("WAITING TIME TO SEND AN OTHER REQ: %d\n", time_difference);
@@ -243,14 +244,16 @@ void receiving_task(long *timestamps_receiving, long *timestamps_sent,
     char *command; //command received
     char *service; // from which service
     zmsg_t *reply2 = mdp_client_recv(session2, &command, &service); //reply if any
-    timestamps_receiving[*count_rep] = zclock_time();
+    long time_tmp=zclock_time();
+
 
 
     if (reply2 == NULL) {
         puts("NO REPLY...");
-        num_no_replies++;
+        *num_no_replies++; //TODO must be improved
 
     } else {
+        timestamps_receiving[*count_rep]=time_tmp;
         char *reply_string = zmsg_popstr(reply2);
         json_object *REP;
         REP = json_tokener_parse(reply_string);

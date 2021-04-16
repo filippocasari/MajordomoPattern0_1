@@ -22,13 +22,20 @@ void print_parsing_time(const long *start, const long *end);
 
 void print_average_parsing_time(const long *parsing_array, const size_t *num_samples);
 
+int check_option(const int *argc, char *argv[], int *daemonize, int *verbose, int *user_endpoint);
+
 double speed = 130.0;
 
-int main() {
+int main(int argc, char *argv[]) {
+    int verbose = 0;
+    int daemonize = 0;
+    int user_endpoint = 0;
+    check_option(&argc, argv, &daemonize, &verbose, &user_endpoint);
 
     zactor_t *workers[NUM_WORKERS];
     for (int i = 0; i < NUM_WORKERS; i++) {
-        workers[i] = zactor_new(workerTask, NULL);
+        if (streq(argv[0], "-v")) verbose = 1;
+        workers[i] = zactor_new(workerTask, &verbose);
 
     }
     zsys_catch_interrupts();
@@ -45,21 +52,46 @@ int main() {
     return 0;
 }
 
+int check_option(const int *argc, char *argv[], int *daemonize, int *verbose, int *user_endpoint) {
+    for (int i = 1; i < *argc; i++) {
+        if (streq(argv[i], "-v")) *verbose = 1;
+        else if (streq(argv[i], "-d")) *daemonize = 1;
+        else if (streq(argv[i], "-h")) {
+            printf("%s [-h] | [-d] [-v] [broker url]\n\t-h This help message\n\t-d Daemon mode.\n\t-v Verbose output\n\tbroker url defaults to tcp://*:5000\n",
+                   argv[0]);
+            return -1;
+        } else *user_endpoint = 1;
+    }
+
+    if (*daemonize != 0) {
+        int rc = daemon(0, 0);
+        assert (rc == 0);
+    }
+}
+
 static void
 workerTask(zsock_t *pipe, void *args) {
+
+    //TODO managing of arguments!!!!!
     zsys_catch_interrupts();
-    int verbose = 1; //set if you wanna get logger
+    int *arguments = (int *) args;
+    int verbose = arguments[0];
+
+
+    //set if you wanna get logger
 
 
 
     //create a new worker, you have to pass "endpoint of the broker", "service required" and the verbose
     long end;
-    long start = zclock_usecs();
+
     long time_to_signup;
     long time_to_close_connection;
     long *times_of_pop_request;
+    char *endpoint= BROKER_ENDPOINT;
+    long start = zclock_usecs();
     mdp_worker_t *session = mdp_worker_new(
-            BROKER_ENDPOINT, "engine_1", verbose);
+            endpoint, "engine_1", verbose);
     end = zclock_usecs();
     time_to_signup = end - start;
     printf("TIME TO SIGN UP: %ld [micro secs]\n", time_to_signup);
@@ -141,6 +173,8 @@ workerTask(zsock_t *pipe, void *args) {
         }
         long sum = 0;
         long double average_time_pop_request;
+        long start_time_sending_reply;
+        long end_time_sending_reply;
         for (int i = 0; i < size_request; i++) {
             sum += times_of_pop_request[i];
         }
@@ -148,6 +182,7 @@ workerTask(zsock_t *pipe, void *args) {
         puts("---------------------------------------------------");
         printf("AVERAGE TIME TO POP REQUEST: %Lf [micro secs]\n", average_time_pop_request);
         free(times_of_pop_request);
+        start_time_sending_reply=zclock_usecs();
         //this is reply message initialization
         reply_message = zmsg_new();
         //return the reply
@@ -156,16 +191,15 @@ workerTask(zsock_t *pipe, void *args) {
 
         //send to broker the reply if exists
         mdp_worker_send(session, &reply_message, reply_to);
-
+        end_time_sending_reply=zclock_usecs();
+        printf("TIME TO SEND A REPLY: %ld\n", end_time_sending_reply-start_time_sending_reply;
     }
     mdp_worker_destroy(&session); //free instance
 
 }
 
-zmsg_t* handle_type_request(zframe_t *request[]) {
+zmsg_t *handle_type_request(zframe_t *request[]) {
 
-
-    long start_time_creating_reply;
     long start_time_parsing;
     long end_time_parsing;
     size_t n = (int) (sizeof(request) / sizeof(request[0]));
@@ -185,7 +219,7 @@ zmsg_t* handle_type_request(zframe_t *request[]) {
         REQ[i] = json_tokener_parse(request_string_json); //adding new request to array REQ
         end_time_parsing = zclock_usecs();
 
-        parsing_array[i]=end_time_parsing-start_time_parsing;
+        parsing_array[i] = end_time_parsing - start_time_parsing;
 
         print_parsing_time(&start_time_parsing, &end_time_parsing);
 
@@ -228,18 +262,18 @@ zmsg_t* handle_type_request(zframe_t *request[]) {
 }
 
 void print_average_parsing_time(const long *parsing_array, const size_t *num_samples) {
-    long sum=0;
-    for (int i=0;  i < *num_samples; i++){
-        sum+=parsing_array[i];
+    long sum = 0;
+    for (int i = 0; i < *num_samples; i++) {
+        sum += parsing_array[i];
     }
-    long double average= (long double) sum/ *num_samples;
-    printf("AVERAGE TIME OF PARSING FOR WORKER: %Lf [micro secs]\n",average);
+    long double average = (long double) sum / *num_samples;
+    printf("AVERAGE TIME OF PARSING FOR WORKER: %Lf [micro secs]\n", average);
 }
 
 void print_parsing_time(const long *start, const long *end) {
-    if((end-start)>0){
-        printf("PARSING TIME: %ld [micro secs]\n", end-start);
-     }else{
+    if ((end - start) > 0) {
+        printf("PARSING TIME: %ld [micro secs]\n", end - start);
+    } else {
         puts("CANNOT PARSING, TIME IS NEGATIVE...\n");
     }
 
