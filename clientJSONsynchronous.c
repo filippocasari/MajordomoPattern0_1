@@ -1,7 +1,6 @@
 //
 // Created by Filippo
 //
-//
 // Created by filippo on 01/04/2021.
 // ASYNCHRONOUS CLIENT WITH JSON FORMAT PAYLOAD
 //
