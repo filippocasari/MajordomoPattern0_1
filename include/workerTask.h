@@ -92,7 +92,7 @@ workerTask(zsock_t *pipe, void *args) {
         //************************************************************************
 
 
-        int size_request = zmsg_size(request); //SIZE of the request
+        int size_request = (int) zmsg_size(request); //SIZE of the request
 
         //frames of body request
         zframe_t *request_stream[size_request];
