@@ -8,10 +8,10 @@
 
 // raspberry endpoint : "tcp://192.168.0.113:5000" "tcp://192.168.1.7:5000"
 //localhost : "tcp://127.0.0.1:5000"
-#define BROKER_ENDPOINT  "tcp://192.168.0.113:5000"
+#define BROKER_ENDPOINT "tcp://127.0.0.1:5000"
 #define REQUEST "GET"
 
-#define NUM_OF_REQUEST 1
+#define NUM_OF_REQUEST 10
 #define TIME_TO_WAIT 500
 
 #define TYPE_REQUEST 0 //kind of coffee you want to require
