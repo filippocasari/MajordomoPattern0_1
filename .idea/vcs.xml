@@ -2,5 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/Dynamic-Queue-FIFO" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/DynamicQueueFIFO" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/include/Dynamic-Queue-FIFO" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/include/DynamicQueueFIFO" vcs="Git" />
   </component>
 </project>

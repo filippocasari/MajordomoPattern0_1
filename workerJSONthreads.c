@@ -3,7 +3,9 @@
 #include <mdp.h>
 
 #include <json-c/json.h>
-#include "include/queue.h"
+
+#include "DynamicQueueFIFO/queue.h"
+
 
 #define NUM_WORKERS 1
 // "tcp://192.168.0.113:5000"
@@ -63,9 +65,9 @@ int get(struct counter_t *c) {
 
 double speed = 130.0;
 
-#define BUFFER_SIZE 10
+#define BUFFER_SIZE 100
 void *buffer[BUFFER_SIZE];
-queue_t queue = QUEUE_INITIALIZER(buffer);
+Queue *queue ;
 zframe_t *replies_to[50];
 
 
@@ -73,12 +75,10 @@ mdp_worker_t *session;
 
 // Number of producer threads to start
 // Must be greater than zero
-const int num_producers = 5;
+#define NUM_OF_PRODUCERS 5
+#define NUM_OF_CONSUMERS 5
 
 
-// Number of consumer threads to start
-// Must be greater than zero
-const int num_consumers = 3;
 
 struct thread_args {
 
@@ -134,11 +134,11 @@ int check_option(const int *argc, char *argv[], int *daemonize, int *verbose, in
 static void
 workerTask(zsock_t *pipe, void *args) {
 
-
+    queue=queue_new(INF);
     init(&num_replies_consum);
     init(&num_replies_prod);
 
-    //TODO managing of arguments!!!!!
+    //TODO managing of arguments!!
     zsys_catch_interrupts();
     int *arguments = (int *) args;
     int verbose = arguments[0];
@@ -146,7 +146,6 @@ workerTask(zsock_t *pipe, void *args) {
     long end;
 
     long time_to_signup;
-    long time_to_close_connection;
     char *endpoint = BROKER_ENDPOINT;
     long start = zclock_usecs();
     session = mdp_worker_new(
@@ -158,31 +157,32 @@ workerTask(zsock_t *pipe, void *args) {
                              7500); //set the heartbeat time. After this time in seconds, worker will send to worker an heartbeat message
 
     srand(time(NULL));
+    pthread_t consumers[NUM_OF_CONSUMERS];
+    pthread_t producers[NUM_OF_PRODUCERS];
+
+    int num = 0;
+    while (!zctx_interrupted) {
 
 
-    int i;
-    pthread_t producers[num_producers];
+        zframe_t *reply_to;
+        zmsg_t *request = mdp_worker_recv(session, &reply_to);
+        //replies_to[NUM_OF_PRODUCERS % 50] = reply_to;
 
-    for (i = 0; i < sizeof(producers) / sizeof(producers[0]); i++) {
 
-        pthread_create(&producers[i], NULL, producer, &i);
+        pthread_create(&producers[num % NUM_OF_PRODUCERS], NULL, producer, &request);
+        printf("Starting Thread producer %d\n", num%NUM_OF_PRODUCERS);
+        pthread_create(&consumers[num % NUM_OF_CONSUMERS], NULL, consumer, &reply_to);
+        printf("Starting Thread consumer %d\n", num%NUM_OF_CONSUMERS);
+        pthread_join(producers[num % NUM_OF_PRODUCERS], NULL);
+
+        pthread_join(consumers[num % NUM_OF_CONSUMERS], NULL);
+
+        num++;
+
 
     }
-    pthread_t consumers[num_consumers];
-    for (i = 0; i < sizeof(consumers) / sizeof(consumers[0]); i++) {
+    mdp_worker_destroy(&session);
 
-        pthread_create(&consumers[i], NULL, consumer, &i);
-    }
-    for (i = 0; i < sizeof(producers) / sizeof(producers[0]); i++) {
-        pthread_join(producers[i], NULL);
-    }
-    for (i = 0; i < sizeof(consumers) / sizeof(consumers[0]); i++) {
-        pthread_join(consumers[i], NULL);
-    }
-    if (zctx_interrupted) {
-
-        mdp_worker_destroy(&session);
-    }
 
 }
 
@@ -268,37 +268,29 @@ void print_parsing_time(const long *start, const long *end) {
 }
 
 void *producer(void *arg) {
-
-    int *id = (int *) arg;
-    printf("Starting Thread producer : %d\n", *id);
-
-    while (!zctx_interrupted) {
+    zmsg_t *request = malloc(zmsg_size(arg));
+    request=arg;
 
 
-        zframe_t *reply_to;
-        zmsg_t *request = mdp_worker_recv(session,
-                                          &reply_to);
 
-        replies_to[num_replies_prod.value % 50] = reply_to;
-        increment(&num_replies_prod);
+    queue_push(queue, request);
+    zmsg_destroy(&request);
 
-        queue_enqueue(&queue, request);
 
-        zmsg_destroy(&request);
-        zframe_destroy(&reply_to);
-    }
-
+    return NULL;
 }
 
 void *consumer(void *arg) {
-    int SIZE_QUEUE = queue_size(&queue);
-    int *id = (int *) arg;
-    printf("Starting Thread consumer : %d\n", *id);
-    while (SIZE_QUEUE > 0) {
+    int SIZE_QUEUE = queue_size(queue);
 
 
-        zmsg_t *request = queue_dequeue(arg);
-        zframe_t *reply_to = replies_to[num_replies_consum.value % 50];
+    if(SIZE_QUEUE>0){
+
+        zframe_t *reply_to =malloc(zframe_size(arg));
+        reply_to=arg;
+
+        zmsg_t *request = queue_pop(queue);
+        //zframe_t *reply_to = replies_to[num_replies_consum.value % 50];
         increment(&num_replies_consum);
         int size_request = (int) zmsg_size(request);
 
@@ -347,8 +339,10 @@ void *consumer(void *arg) {
 
         //send to broker the reply if exists
         mdp_worker_send(session, &reply_message, reply_to);
-        SIZE_QUEUE = queue_size(&queue);
         end_time_sending_reply = zclock_usecs();
         printf("TIME TO SEND A REPLY: %ld\n", end_time_sending_reply - start_time_sending_reply);
     }
+
+
+    return NULL;
 }
