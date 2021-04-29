@@ -43,35 +43,12 @@ struct counter_t {
 static struct counter_t num_replies_consum;
 static struct counter_t num_replies_prod;
 
-void init(struct counter_t *c) {
-    c->value = 0;
-    pthread_mutex_init(&c->lock, NULL);
-}
-
-void increment_by(struct counter_t *c, int by) {
-    pthread_mutex_lock(&c->lock);
-    c->value += by;
-    pthread_mutex_unlock(&c->lock);
-}
-
-void increment(struct counter_t *c) {
-    increment_by(c, 1);
-}
-
-int get(struct counter_t *c) {
-    pthread_mutex_lock(&c->lock);
-    int rc = c->value;
-    pthread_mutex_unlock(&c->lock);
-    return rc;
-}
-
 
 double speed = 130.0;
 
 #define BUFFER_SIZE 100
-void *buffer[BUFFER_SIZE];
+
 struct Queue *queue;
-zframe_t *replies_to[50];
 
 
 mdp_worker_t *session;
@@ -130,8 +107,7 @@ static void
 workerTask(zsock_t *pipe, void *args) {
 
     queue = newQueue(100);
-    init(&num_replies_consum);
-    init(&num_replies_prod);
+
 
     //TODO managing of arguments!!
     zsys_catch_interrupts();
@@ -162,16 +138,16 @@ workerTask(zsock_t *pipe, void *args) {
         zframe_t *reply_to;
         zmsg_t *request = mdp_worker_recv(session, &reply_to);
         //replies_to[NUM_OF_PRODUCERS % 50] = reply_to;
-
-
-        pthread_create(&producers[num % NUM_OF_PRODUCERS], NULL, &producer, &request);
-        printf("Starting Thread producer %d\n", num % NUM_OF_PRODUCERS);
+        //incoda
+        enqueue(queue, request);
+        //pthread_create(&producers[num % NUM_OF_PRODUCERS], NULL, &producer, &request);
+        //printf("Starting Thread producer %d\n", num % NUM_OF_PRODUCERS);
         pthread_create(&consumers[num % NUM_OF_CONSUMERS], NULL, &consumer, &reply_to);
         printf("Starting Thread consumer %d\n", num % NUM_OF_CONSUMERS);
+
         pthread_join(producers[num % NUM_OF_PRODUCERS], NULL);
-
         pthread_join(consumers[num % NUM_OF_CONSUMERS], NULL);
-
+        zmsg_destroy(&request);
         num++;
 
 
@@ -185,7 +161,8 @@ zmsg_t *handle_type_request(zframe_t *request[]) {
 
     long start_time_parsing;
     long end_time_parsing;
-    size_t n = (int) (sizeof(request) / sizeof(request[0]));
+    //to improve
+    size_t n = sizeof(&request);
     zframe_t *frame_n;
 
     zmsg_t *reply = zmsg_new();
@@ -284,8 +261,8 @@ void *consumer(void *arg) {
     zmsg_t *request;
     request = dequeue(queue);
 
-    //zframe_t *reply_to = replies_to[num_replies_consum.value % 50];
-    increment(&num_replies_consum);
+
+    //increment(&num_replies_consum);
     int size_request = (int) zmsg_size(request);
 
     zframe_t *request_stream[size_request];
