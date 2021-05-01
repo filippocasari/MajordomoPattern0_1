@@ -26,7 +26,7 @@ void *consumer(void *arg);
 
 void *producer(void *arg);
 
-zmsg_t *handle_type_request(zframe_t *request[]);
+zmsg_t *handle_type_request(zmsg_t *request);
 
 void print_parsing_time(const long *start, const long *end);
 
@@ -129,7 +129,6 @@ workerTask(zsock_t *pipe, void *args) {
 
     srand(time(NULL));
     pthread_t consumers[NUM_OF_CONSUMERS];
-    pthread_t producers[NUM_OF_PRODUCERS];
 
     int num = 0;
     while (!zctx_interrupted) {
@@ -142,10 +141,9 @@ workerTask(zsock_t *pipe, void *args) {
         enqueue(queue, request);
         //pthread_create(&producers[num % NUM_OF_PRODUCERS], NULL, &producer, &request);
         //printf("Starting Thread producer %d\n", num % NUM_OF_PRODUCERS);
-        pthread_create(&consumers[num % NUM_OF_CONSUMERS], NULL, &consumer, &reply_to);
+        pthread_create(&consumers[num % NUM_OF_CONSUMERS], NULL, consumer, &reply_to);
         printf("Starting Thread consumer %d\n", num % NUM_OF_CONSUMERS);
 
-        pthread_join(producers[num % NUM_OF_PRODUCERS], NULL);
         pthread_join(consumers[num % NUM_OF_CONSUMERS], NULL);
         zmsg_destroy(&request);
         num++;
@@ -157,66 +155,36 @@ workerTask(zsock_t *pipe, void *args) {
 
 }
 
-zmsg_t *handle_type_request(zframe_t *request[]) {
-
-    long start_time_parsing;
-    long end_time_parsing;
-    //to improve
-    size_t n = sizeof(&request);
-    zframe_t *frame_n;
+zmsg_t *handle_type_request(zmsg_t *request) {
 
     zmsg_t *reply = zmsg_new();
 
-    json_object *REQ[n];
-    json_object *REP[n];
-    long parsing_array[n];
+    json_object *REP;
+    puts("building a reply...");
 
-    for (int i = 0; i < n; i++) {
-        frame_n = request[i];
-        start_time_parsing = zclock_usecs(); // start time of the parsing
+    REP = json_object_new_object();
 
-        char *request_string_json = zframe_strdup(frame_n); //copy frame as a string
-        REQ[i] = json_tokener_parse(request_string_json); //adding new request to array REQ
-        end_time_parsing = zclock_usecs();
+    json_object_object_add(REP, "VENDOR", json_object_new_string(VENDOR));
+    json_object_object_add(REP, "POWER", json_object_new_string(POWER));
 
-        parsing_array[i] = end_time_parsing - start_time_parsing;
+    speed += (double) rand() / RAND_MAX * 2.0 - 1.0;
+    json_object_object_add(REP, "VALUE", json_object_new_double(speed));
 
-        print_parsing_time(&start_time_parsing, &end_time_parsing);
+    int64_t timestamp = zclock_time();
 
-        zframe_destroy(&frame_n);
+    json_object_object_add(REP, "timestamp", json_object_new_int64(timestamp));
 
+    puts("REPLY =" );
+    json_object_object_foreach(REP, key2, val2) {
+        printf("\t%s: %s\n", key2, json_object_to_json_string(val2));
     }
+    puts("\n\n");
 
-    for (int i = 0; i < n; i++) {
-        printf("REQUEST BODY FRAME [%d] : \n", i);
-        json_object_object_foreach(REQ[i], key, val) {
-            printf("\t%s: %s\n", key, json_object_to_json_string(val));
-            REP[i] = json_object_new_object();
-
-            puts("client wants the speed!");
-            json_object_object_add(REP[i], "VENDOR", json_object_new_string(VENDOR));
-            json_object_object_add(REP[i], "POWER", json_object_new_string(POWER));
-
-            speed += (double) rand() / RAND_MAX * 2.0 - 1.0;
-            json_object_object_add(REP[i], "VALUE", json_object_new_double(speed));
-
-            int64_t timestamp = zclock_time();
-
-            json_object_object_add(REP[i], "timestamp", json_object_new_int64(timestamp));
+    const char *reply_string = json_object_to_json_string(REP);
+    zmsg_pushstr(reply, reply_string);
 
 
-        }
-        printf("REPLY [%d] =\n", i);
-        json_object_object_foreach(REP[i], key2, val2) {
-            printf("\t%s: %s\n", key2, json_object_to_json_string(val2));
-        }
-        puts("\n\n");
 
-        const char *reply_string = json_object_to_json_string(REP[i]);
-        zmsg_pushstr(reply, reply_string);
-        print_average_parsing_time(parsing_array, &n);
-
-    }
 
     return reply;
 }
@@ -259,13 +227,13 @@ void *consumer(void *arg) {
     zframe_t *reply_to;
     reply_to = (zframe_t *) arg;
     zmsg_t *request;
-    request = dequeue(queue);
+    request =  dequeue(queue);
 
 
     //increment(&num_replies_consum);
     int size_request = (int) zmsg_size(request);
 
-    zframe_t *request_stream[size_request];
+    zframe_t *request_frame;
 
     printf("RECEIVED MESSAGE FROM BROKER\n");
 
@@ -273,7 +241,7 @@ void *consumer(void *arg) {
     puts("REQUEST BODY FRAMES");
     printf("NUMBER OF FRAMES: %d\n", size_request);
 
-    char *s = NULL; //string extracted from each frame
+    char *s; //string extracted from each frame
 
 
     long start = zclock_usecs(); // time to start popping requests
@@ -281,38 +249,36 @@ void *consumer(void *arg) {
 
     for (int i = 0; i < size_request; i++) {
         //create a list of frames and for each one extracts the string
-        request_stream[i] = zmsg_pop(request);
+        request_frame = zmsg_next(request);
         long end = zclock_usecs();
         printf("TIME TO POP ONE SINGLE REQUEST: %ld [micro secs] \n", end - start);
 
         //duplicating string of the frame into the printable string
-        s = zframe_strdup(request_stream[i]);
+        s = zframe_strdup(request_frame);
         printf("BODY FRAME[%d]: %s\n", i, s);
-
+        free(s);
         printf("FRAME TYPE-CONTENT: %s\n", "PLAIN STRING");
-        printf("(BYTE) SIZE FRAME: %lu\n", zframe_size(request_stream[i]));
+        printf("(BYTE) SIZE FRAME: %lu\n", zframe_size(request_frame));
+        zframe_destroy(&request_frame);
     }
-    long sum = 0;
-    long double average_time_pop_request;
+
     long start_time_sending_reply;
     long end_time_sending_reply;
-
-    average_time_pop_request = (long double) sum / size_request;
-    puts("---------------------------------------------------");
-    printf("AVERAGE TIME TO POP REQUEST: %Lf [micro secs]\n", average_time_pop_request);
 
     start_time_sending_reply = zclock_usecs();
     //this is reply message initialization
     zmsg_t *reply_message = zmsg_new();
     //return the reply
-    reply_message = handle_type_request(request_stream);
+    reply_message = handle_type_request(request);
 
 
     //send to broker the reply if exists
     mdp_worker_send(session, &reply_message, reply_to);
     end_time_sending_reply = zclock_usecs();
     printf("TIME TO SEND A REPLY: %ld\n", end_time_sending_reply - start_time_sending_reply);
-
+    zframe_destroy(&reply_to);
+    zmsg_destroy(&reply_message);
+    zframe_destroy(&request_frame);
 
     return NULL;
 }
